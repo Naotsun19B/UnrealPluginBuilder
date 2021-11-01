@@ -248,10 +248,17 @@ namespace UnrealPluginBuilder
             return Result;
         }
 
-        private EngineVersion GetEngineVersion(string batchFilePath)
+        private string GetEngineVersioinPath(string batchFilePath)
         {
             var buildDirPath = Directory.GetParent(batchFilePath).Parent.FullName;
             var versionFilePath = Path.GetFullPath(Path.Combine(buildDirPath, "Build.version"));
+
+            return versionFilePath;
+        }
+
+        private EngineVersion GetEngineVersion(string batchFilePath)
+        {
+            var versionFilePath = GetEngineVersioinPath(batchFilePath);
 
             if (!File.Exists(versionFilePath))
             {
@@ -262,9 +269,8 @@ namespace UnrealPluginBuilder
             return JsonSerializer.Deserialize<EngineVersion>(jsonString);
         }
 
-        private string GetEngineVersionString(string batchFilePath)
+        private string GetEngineVersionString(EngineVersion engineVersion)
         {
-            var engineVersion = GetEngineVersion(batchFilePath);
             if (engineVersion == null)
             {
                 return "UnknownVersion";
@@ -314,14 +320,43 @@ namespace UnrealPluginBuilder
             return string.Empty;
         }
 
-        private void RunBuildProcess(string batchFilePath)
+        private string CreateTitleMessage(string message)
         {
+            string frame = string.Empty;
+            int length = message.Length * 2;
+            for (int Index = 0; Index <= length; Index++)
+            {
+                frame += '=';
+            }
+
+            return $"{frame}\r\n{message}\r\n{frame}\r\n\r\n";
+        }
+
+        private bool RunBuildProcess(string batchFilePath)
+        {
+            var pluginInfo = GetPluginInfo();
+            var engineVersion = GetEngineVersion(batchFilePath);
+            if (pluginInfo == null)
+            {
+                OutputLog += CreateTitleMessage($"Error : Not found uplugin file. ({UpluginPath})");
+                return false;
+            }
+            if (engineVersion == null)
+            {
+                OutputLog += CreateTitleMessage($"Error : Not found version file. ({GetEngineVersioinPath(batchFilePath)})");
+                return false;
+            }
+            var engineVersionString = GetEngineVersionString(engineVersion);
+
+            var header = $"Build Process / [Plugin Name] {pluginInfo.PluginName} / [Plugin Version] {pluginInfo.VersionName} / [Engine Version] {engineVersionString}";
+            OutputLog += CreateTitleMessage(header);
+
             buildProcess = new Process();
             buildProcess.StartInfo.FileName = batchFilePath;
             buildProcess.StartInfo.CreateNoWindow = true;
             buildProcess.StartInfo.UseShellExecute = false;
 
-            var OutputDirName = $"{GetPluginInfo().PluginName}_{GetEngineVersionString(batchFilePath)}";
+            var OutputDirName = $"{pluginInfo.PluginName}_{engineVersionString}";
             var OutputDirPath = Path.Combine(BuildDir, OutputDirName);
             buildProcess.StartInfo.Arguments = $"BuildPlugin -Plugin=\"{UpluginPath}\" -Package=\"{OutputDirPath}\" -Rocket";
             if (StrictIncludes)
@@ -340,6 +375,14 @@ namespace UnrealPluginBuilder
             var output = buildProcess.StandardOutput.ReadToEnd();
             output = output.Replace("\r\r\n", "\r\n");
             OutputLog += output;
+
+            var wasSuccessful = (buildProcess.ExitCode == 0);
+            if (wasSuccessful)
+            {
+                OutputLog += $"Output to \"{OutputDirPath}\"";
+            }
+
+            return wasSuccessful;
         }
 
         private void btn_PickProjectPath_Click(object sender, EventArgs e)
