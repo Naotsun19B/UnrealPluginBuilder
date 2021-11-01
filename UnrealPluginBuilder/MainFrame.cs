@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Reflection;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace UnrealPluginBuilder
 {
@@ -27,6 +29,19 @@ namespace UnrealPluginBuilder
         private readonly string outputDirSection = "OutputDir";
         private readonly string outputDirKey = "Path";
 
+        private Process buildProcess = null;
+
+        private bool isInBuildProcess = false;
+        private bool IsInBuildProcess
+        {
+            get => isInBuildProcess;
+            set
+            {
+                isInBuildProcess = value;
+                UpdateBuildButtonState();
+            }
+        }
+
         private string UprojectPath
         {
             get => tb_ProjectPath.Text;
@@ -44,7 +59,7 @@ namespace UnrealPluginBuilder
             get => tb_OutputDir.Text;
             set => tb_OutputDir.Text = value;
         }
-
+        
         private string BuildDir
         {
             get => Path.Combine(OutputDir, "BuiltPlugin");
@@ -58,12 +73,43 @@ namespace UnrealPluginBuilder
         private string OutputLog
         {
             get => tb_OutputLog.Text;
-            set => tb_OutputLog.Text = value;
+            set => SafeSetOutputLog(value);
+        }
+        private void SafeSetOutputLog(string text)
+        {
+            if (tb_OutputLog.InvokeRequired)
+            {
+                Invoke((MethodInvoker)delegate () { SafeSetOutputLog(text); });
+            }
+            else
+            {
+                tb_OutputLog.Text = text;
+                tb_OutputLog.SelectionStart = text.Length;
+                tb_OutputLog.SelectionLength = 0;
+                tb_OutputLog.ScrollToCaret();
+            }
+        }
+
+        private bool CreatePackage
+        {
+            get => cb_CreatePackage.Checked;
         }
 
         private bool StrictIncludes
         {
             get => cb_StrictIncludes.Checked;
+        }
+
+        private void SafeSetBuildButtonState(bool state)
+        {
+            if (btn_Build.InvokeRequired)
+            {
+                Invoke((MethodInvoker)delegate () { SafeSetBuildButtonState(state); });
+            }
+            else
+            {
+                btn_Build.Enabled = state;
+            }
         }
 
         public MainFrame()
@@ -84,6 +130,14 @@ namespace UnrealPluginBuilder
 
         private void MainFrame_FormClosing(object sender, FormClosingEventArgs e)
         {
+            if (buildProcess != null)
+            {
+                if (!buildProcess.HasExited)
+                {
+                    buildProcess.Kill();
+                }
+            }
+
             Serialize();
         }
 
@@ -168,12 +222,15 @@ namespace UnrealPluginBuilder
 
         private void UpdateBuildButtonState()
         {
-            btn_Build.Enabled = (
+            var newState = (
                 UprojectPath != string.Empty &&
                 UpluginPath != string.Empty &&
                 OutputDir != string.Empty &&
-                GetBatchFilePaths().Count > 0
+                GetBatchFilePaths().Count > 0 &&
+                !IsInBuildProcess
             );
+
+            SafeSetBuildButtonState(newState);
         }
 
         private List<string> GetBatchFilePaths()
@@ -189,6 +246,42 @@ namespace UnrealPluginBuilder
             }
 
             return Result;
+        }
+
+        private EngineVersion GetEngineVersion(string batchFilePath)
+        {
+            var buildDirPath = Directory.GetParent(batchFilePath).Parent.FullName;
+            var versionFilePath = Path.GetFullPath(Path.Combine(buildDirPath, "Build.version"));
+
+            if (!File.Exists(versionFilePath))
+            {
+                return null;
+            }
+
+            var jsonString = File.ReadAllText(versionFilePath);
+            return JsonSerializer.Deserialize<EngineVersion>(jsonString);
+        }
+
+        private string GetEngineVersionString(string batchFilePath)
+        {
+            var engineVersion = GetEngineVersion(batchFilePath);
+            if (engineVersion == null)
+            {
+                return "UnknownVersion";
+            }
+
+            return $"{engineVersion.MajorVersion}.{engineVersion.MinorVersion}";
+        }
+
+        private PluginInfo GetPluginInfo()
+        {
+            if (!File.Exists(UpluginPath))
+            {
+                return null;
+            }
+
+            var jsonString = File.ReadAllText(UpluginPath);
+            return JsonSerializer.Deserialize<PluginInfo>(jsonString);
         }
 
         private string PickFilePath(string title, string filter)
@@ -221,28 +314,32 @@ namespace UnrealPluginBuilder
             return string.Empty;
         }
 
-        private void RunBuildProcess(string BatchFilePath)
+        private void RunBuildProcess(string batchFilePath)
         {
-            var process = new Process();
-            process.StartInfo.FileName = BatchFilePath;
-            process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.UseShellExecute = false;
-            
-            process.StartInfo.Arguments = $"BuildPlugin -Plugin=\"{UpluginPath}\" -Package=\"{BuildDir}\" -Rocket";
+            buildProcess = new Process();
+            buildProcess.StartInfo.FileName = batchFilePath;
+            buildProcess.StartInfo.CreateNoWindow = true;
+            buildProcess.StartInfo.UseShellExecute = false;
+
+            var OutputDirName = $"{GetPluginInfo().PluginName}_{GetEngineVersionString(batchFilePath)}";
+            var OutputDirPath = Path.Combine(BuildDir, OutputDirName);
+            buildProcess.StartInfo.Arguments = $"BuildPlugin -Plugin=\"{UpluginPath}\" -Package=\"{OutputDirPath}\" -Rocket";
             if (StrictIncludes)
             {
-                process.StartInfo.Arguments += " -strictincludes";
+                buildProcess.StartInfo.Arguments += " -strictincludes";
             }
 
-            process.StartInfo.RedirectStandardOutput = true;
+            buildProcess.StartInfo.RedirectStandardOutput = true;
 
-            process.Start();
-
-            var output = process.StandardOutput.ReadToEnd();
-            output = output.Replace("\r\r\n", "\n");
+            buildProcess.Start();
+            while (!buildProcess.HasExited)
+            {
+                var line = buildProcess.StandardOutput.ReadLine() + "\r\n";
+                OutputLog += line;
+            }
+            var output = buildProcess.StandardOutput.ReadToEnd();
+            output = output.Replace("\r\r\n", "\r\n");
             OutputLog += output;
-
-            process.WaitForExit();
         }
 
         private void btn_PickProjectPath_Click(object sender, EventArgs e)
@@ -294,12 +391,18 @@ namespace UnrealPluginBuilder
         private void btn_Build_Click(object sender, EventArgs e)
         {
             OutputLog = string.Empty;
+            IsInBuildProcess = true;
 
-            var BatchFilePaths = GetBatchFilePaths();
-            foreach (var BatchFilePath in BatchFilePaths)
+            Task.Factory.StartNew(() =>
             {
-                RunBuildProcess(BatchFilePath);
-            }
+                var BatchFilePaths = GetBatchFilePaths();
+                foreach (var BatchFilePath in BatchFilePaths)
+                {
+                    RunBuildProcess(BatchFilePath);
+                }
+
+                IsInBuildProcess = false;
+            });
         }
 
         private void clb_BuildBatchFiles_MouseDown(object sender, MouseEventArgs e)

@@ -45,6 +45,7 @@ namespace UnrealPluginBuilder
             this.lbl_OutputDir = new System.Windows.Forms.Label();
             this.tb_OutputDir = new System.Windows.Forms.TextBox();
             this.btn_OutputDir = new System.Windows.Forms.Button();
+            this.cb_CreatePackage = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
             // btn_Build
@@ -156,13 +157,14 @@ namespace UnrealPluginBuilder
             this.tb_OutputLog.ScrollBars = System.Windows.Forms.ScrollBars.Both;
             this.tb_OutputLog.Size = new System.Drawing.Size(780, 264);
             this.tb_OutputLog.TabIndex = 11;
+            this.tb_OutputLog.WordWrap = false;
             // 
             // cb_StrictIncludes
             // 
             this.cb_StrictIncludes.AutoSize = true;
             this.cb_StrictIncludes.Checked = true;
             this.cb_StrictIncludes.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.cb_StrictIncludes.Location = new System.Drawing.Point(89, 260);
+            this.cb_StrictIncludes.Location = new System.Drawing.Point(202, 260);
             this.cb_StrictIncludes.Name = "cb_StrictIncludes";
             this.cb_StrictIncludes.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
             this.cb_StrictIncludes.Size = new System.Drawing.Size(100, 19);
@@ -196,11 +198,25 @@ namespace UnrealPluginBuilder
             this.btn_OutputDir.UseVisualStyleBackColor = true;
             this.btn_OutputDir.Click += new System.EventHandler(this.btn_OutputDir_Click);
             // 
+            // cb_CreatePackage
+            // 
+            this.cb_CreatePackage.AutoSize = true;
+            this.cb_CreatePackage.Checked = true;
+            this.cb_CreatePackage.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.cb_CreatePackage.Location = new System.Drawing.Point(89, 260);
+            this.cb_CreatePackage.Name = "cb_CreatePackage";
+            this.cb_CreatePackage.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
+            this.cb_CreatePackage.Size = new System.Drawing.Size(107, 19);
+            this.cb_CreatePackage.TabIndex = 16;
+            this.cb_CreatePackage.Text = "Create Package";
+            this.cb_CreatePackage.UseVisualStyleBackColor = true;
+            // 
             // MainFrame
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 561);
+            this.Controls.Add(this.cb_CreatePackage);
             this.Controls.Add(this.btn_OutputDir);
             this.Controls.Add(this.tb_OutputDir);
             this.Controls.Add(this.lbl_OutputDir);
@@ -244,5 +260,6 @@ namespace UnrealPluginBuilder
         private System.Windows.Forms.Label lbl_OutputDir;
         private System.Windows.Forms.TextBox tb_OutputDir;
         private System.Windows.Forms.Button btn_OutputDir;
+        private System.Windows.Forms.CheckBox cb_CreatePackage;
     }
 }
