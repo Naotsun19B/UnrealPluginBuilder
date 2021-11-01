@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Windows.Forms;
-using System.Windows;
 using System.IO;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Reflection;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.IO.Compression;
+using System.Text;
 
 namespace UnrealPluginBuilder
 {
@@ -28,6 +27,10 @@ namespace UnrealPluginBuilder
         private readonly string batchFilesCountKey = "Count";
         private readonly string outputDirSection = "OutputDir";
         private readonly string outputDirKey = "Path";
+
+        private readonly string resourceDirName = "Resources";
+        private readonly string sourceDirName = "Source";
+        private readonly string contentDirName = "Content";
 
         private Process buildProcess = null;
 
@@ -62,12 +65,22 @@ namespace UnrealPluginBuilder
         
         private string BuildDir
         {
-            get => Path.Combine(OutputDir, "BuiltPlugin");
+            get => Path.Combine(OutputDir, "BuiltPlugins");
         }
 
         private string PackageDir
         {
-            get => Path.Combine(OutputDir, "PackagedPlugin");
+            get => Path.Combine(OutputDir, "PackagedPlugins");
+        }
+
+        private string TempDir
+        {
+            get => Path.Combine(OutputDir, "Temp");
+        }
+
+        private string LogDir
+        {
+            get => Path.Combine(OutputDir, "Logs");
         }
 
         private string OutputLog
@@ -320,10 +333,53 @@ namespace UnrealPluginBuilder
             return string.Empty;
         }
 
+        private void CopyFileToTemp(string sourceDirPath, string filename)
+        {
+            var sourceFilePath = Path.Combine(sourceDirPath, filename);
+            var destFilePath = Path.Combine(TempDir, filename);
+            File.Copy(sourceFilePath, destFilePath);
+            OutputLog += $"Copy \"{sourceFilePath}\" to \"{destFilePath}\"\r\n";
+        }
+
+        private void CopyDirectoryToTemp(string sourceRootDirPath, string dirName)
+        {
+            var sourceDirPath = Path.Combine(sourceRootDirPath, dirName);
+            var destDirPath = Path.Combine(TempDir, dirName);
+            DirectoryCopy(sourceDirPath, destDirPath);
+            OutputLog += $"Copy \"{sourceDirPath}\" to \"{destDirPath}\"\r\n";
+        }
+
+        private void DirectoryCopy(string sourceDirName, string destDirName)
+        {
+            DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+
+            if (!dir.Exists)
+            {
+                return;
+            }
+
+            DirectoryInfo[] dirs = dir.GetDirectories();
+    
+            Directory.CreateDirectory(destDirName);
+
+            FileInfo[] files = dir.GetFiles();
+            foreach (FileInfo file in files)
+            {
+                string tempPath = Path.Combine(destDirName, file.Name);
+                file.CopyTo(tempPath, false);
+            }
+
+            foreach (DirectoryInfo subdir in dirs)
+            {
+                string tempPath = Path.Combine(destDirName, subdir.Name);
+                DirectoryCopy(subdir.FullName, tempPath);
+            }
+        }
+
         private string CreateTitleMessage(string message)
         {
             string frame = string.Empty;
-            int length = message.Length * 2;
+            int length = message.Length + message.Length / 2;
             for (int Index = 0; Index <= length; Index++)
             {
                 frame += '=';
@@ -332,23 +388,39 @@ namespace UnrealPluginBuilder
             return $"{frame}\r\n{message}\r\n{frame}\r\n\r\n";
         }
 
-        private bool RunBuildProcess(string batchFilePath)
+        private struct BuildResult
+        {
+            public string outputPath;
+            public bool wasSuccessful;
+
+            public BuildResult(string outputPath, bool wasSuccessful)
+            {
+                this.outputPath = outputPath;
+                this.wasSuccessful = wasSuccessful;
+            }
+
+            static public BuildResult Faild()
+            {
+                return new BuildResult(string.Empty, false);
+            }
+        };
+        private BuildResult RunBuildProcess(string batchFilePath)
         {
             var pluginInfo = GetPluginInfo();
             var engineVersion = GetEngineVersion(batchFilePath);
             if (pluginInfo == null)
             {
                 OutputLog += CreateTitleMessage($"Error : Not found uplugin file. ({UpluginPath})");
-                return false;
+                return BuildResult.Faild();
             }
             if (engineVersion == null)
             {
                 OutputLog += CreateTitleMessage($"Error : Not found version file. ({GetEngineVersioinPath(batchFilePath)})");
-                return false;
+                return BuildResult.Faild();
             }
             var engineVersionString = GetEngineVersionString(engineVersion);
 
-            var header = $"Build Process / [Plugin Name] {pluginInfo.PluginName} / [Plugin Version] {pluginInfo.VersionName} / [Engine Version] {engineVersionString}";
+            var header = $"[Plugin Name] {pluginInfo.PluginName} / [Plugin Version] {pluginInfo.VersionName} / [Engine Version] {engineVersionString}";
             OutputLog += CreateTitleMessage(header);
 
             buildProcess = new Process();
@@ -379,10 +451,68 @@ namespace UnrealPluginBuilder
             var wasSuccessful = (buildProcess.ExitCode == 0);
             if (wasSuccessful)
             {
-                OutputLog += $"Output to \"{OutputDirPath}\"";
+                OutputLog += $"Output to \"{OutputDirPath}\"\r\n";
             }
 
-            return wasSuccessful;
+            return new BuildResult(OutputDirPath, wasSuccessful);
+        }
+
+        private bool RunPackageProcess(string batchFilePath, string builtPluginPath)
+        {
+            var pluginInfo = GetPluginInfo();
+            var engineVersion = GetEngineVersion(batchFilePath);
+            if (pluginInfo == null)
+            {
+                OutputLog += CreateTitleMessage($"Error : Not found uplugin file. ({UpluginPath})");
+                return false;
+            }
+            if (engineVersion == null)
+            {
+                OutputLog += CreateTitleMessage($"Error : Not found version file. ({GetEngineVersioinPath(batchFilePath)})");
+                return false;
+            }
+            var engineVersionString = GetEngineVersionString(engineVersion);
+
+            try
+            {
+                if (pluginInfo.CanContainContent)
+                {
+                    CopyDirectoryToTemp(builtPluginPath, contentDirName);
+                }
+                CopyDirectoryToTemp(builtPluginPath, resourceDirName);
+                CopyDirectoryToTemp(builtPluginPath, sourceDirName);
+                CopyFileToTemp(builtPluginPath, Path.GetFileName(UpluginPath));
+
+                var OutputFilename = $"{pluginInfo.PluginName}{pluginInfo.VersionName}.zip";
+                var OutputDirName = $"{pluginInfo.PluginName}_{engineVersionString}";
+                var OutputDirPath = Path.Combine(PackageDir, OutputDirName);
+                var OutputFilePath = Path.Combine(OutputDirPath, OutputFilename);
+
+                if (!Directory.Exists(OutputDirPath))
+                {
+                    Directory.CreateDirectory(OutputDirPath);
+                }
+                else
+                {
+                    if (File.Exists(OutputFilePath))
+                    {
+                        File.Delete(OutputFilePath);
+                    }
+                }
+
+                OutputLog += $"Creating {OutputFilename}\r\n";
+                ZipFile.CreateFromDirectory(TempDir, OutputFilePath, CompressionLevel.Optimal, false, Encoding.UTF8);
+
+                OutputLog += $"Output to \"{OutputFilePath}\"\r\n";
+
+                Directory.Delete(TempDir, true);
+                return true;
+            }
+            catch
+            {
+                Directory.Delete(TempDir, true);
+                return false;
+            }
         }
 
         private void btn_PickProjectPath_Click(object sender, EventArgs e)
@@ -441,10 +571,25 @@ namespace UnrealPluginBuilder
                 var BatchFilePaths = GetBatchFilePaths();
                 foreach (var BatchFilePath in BatchFilePaths)
                 {
-                    RunBuildProcess(BatchFilePath);
+                    BuildResult buildResult = RunBuildProcess(BatchFilePath);
+                    if (buildResult.wasSuccessful && CreatePackage)
+                    {
+                        RunPackageProcess(BatchFilePath, buildResult.outputPath);
+                    }
                 }
 
                 IsInBuildProcess = false;
+
+                if (!Directory.Exists(LogDir))
+                {
+                    Directory.CreateDirectory(LogDir);
+                }
+
+                var logFilename = $"OutputLog_{DateTime.Now.Year}.{DateTime.Now.Month}.{DateTime.Now.Day}.{DateTime.Now.Hour}.{DateTime.Now.Minute}.{DateTime.Now.Second}.{DateTime.Now.Millisecond}.txt";
+                var logFilePath = Path.Combine(LogDir, logFilename);
+                var streamWriter = new StreamWriter(logFilePath, false, Encoding.UTF8);
+                streamWriter.Write(OutputLog);
+                streamWriter.Close();
             });
         }
 
