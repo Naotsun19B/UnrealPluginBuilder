@@ -44,7 +44,7 @@ namespace UnrealPluginBuilder
             this.cb_StrictIncludes = new System.Windows.Forms.CheckBox();
             this.lbl_OutputDir = new System.Windows.Forms.Label();
             this.tb_OutputDir = new System.Windows.Forms.TextBox();
-            this.btn_OutputDir = new System.Windows.Forms.Button();
+            this.btn_PickOutputDir = new System.Windows.Forms.Button();
             this.cb_CreatePackage = new System.Windows.Forms.CheckBox();
             this.SuspendLayout();
             // 
@@ -188,15 +188,15 @@ namespace UnrealPluginBuilder
             this.tb_OutputDir.Size = new System.Drawing.Size(665, 23);
             this.tb_OutputDir.TabIndex = 14;
             // 
-            // btn_OutputDir
+            // btn_PickOutputDir
             // 
-            this.btn_OutputDir.Location = new System.Drawing.Point(760, 223);
-            this.btn_OutputDir.Name = "btn_OutputDir";
-            this.btn_OutputDir.Size = new System.Drawing.Size(28, 23);
-            this.btn_OutputDir.TabIndex = 15;
-            this.btn_OutputDir.Text = "...";
-            this.btn_OutputDir.UseVisualStyleBackColor = true;
-            this.btn_OutputDir.Click += new System.EventHandler(this.btn_OutputDir_Click);
+            this.btn_PickOutputDir.Location = new System.Drawing.Point(760, 223);
+            this.btn_PickOutputDir.Name = "btn_PickOutputDir";
+            this.btn_PickOutputDir.Size = new System.Drawing.Size(28, 23);
+            this.btn_PickOutputDir.TabIndex = 15;
+            this.btn_PickOutputDir.Text = "...";
+            this.btn_PickOutputDir.UseVisualStyleBackColor = true;
+            this.btn_PickOutputDir.Click += new System.EventHandler(this.btn_PickOutputDir_Click);
             // 
             // cb_CreatePackage
             // 
@@ -217,7 +217,7 @@ namespace UnrealPluginBuilder
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 561);
             this.Controls.Add(this.cb_CreatePackage);
-            this.Controls.Add(this.btn_OutputDir);
+            this.Controls.Add(this.btn_PickOutputDir);
             this.Controls.Add(this.tb_OutputDir);
             this.Controls.Add(this.lbl_OutputDir);
             this.Controls.Add(this.cb_StrictIncludes);
@@ -259,7 +259,7 @@ namespace UnrealPluginBuilder
         private System.Windows.Forms.CheckBox cb_StrictIncludes;
         private System.Windows.Forms.Label lbl_OutputDir;
         private System.Windows.Forms.TextBox tb_OutputDir;
-        private System.Windows.Forms.Button btn_OutputDir;
+        private System.Windows.Forms.Button btn_PickOutputDir;
         private System.Windows.Forms.CheckBox cb_CreatePackage;
     }
 }

@@ -41,7 +41,7 @@ namespace UnrealPluginBuilder
             set
             {
                 isInBuildProcess = value;
-                UpdateBuildButtonState();
+                UpdateFormControlState();
             }
         }
 
@@ -113,15 +113,26 @@ namespace UnrealPluginBuilder
             get => cb_StrictIncludes.Checked;
         }
 
-        private void SafeSetBuildButtonState(bool state)
+        private void SafeSetFormControlState(bool state)
         {
             if (btn_Build.InvokeRequired)
             {
-                Invoke((MethodInvoker)delegate () { SafeSetBuildButtonState(state); });
+                Invoke((MethodInvoker)delegate () { SafeSetFormControlState(state); });
             }
             else
             {
+                tb_ProjectPath.ReadOnly = !state;
+                btn_PickProjectPath.Enabled = state;
+                tb_PluginPath.ReadOnly = !state;
+                btn_PickPluginPath.Enabled = state;
+                btn_AddBatchFile.Enabled = state;
+                btn_RemoveBatchFile.Enabled = state;
+                clb_BuildBatchFiles.Enabled = state;
+                tb_OutputDir.ReadOnly = !state;
+                btn_PickOutputDir.Enabled = state;
                 btn_Build.Enabled = state;
+                cb_CreatePackage.Enabled = state;
+                cb_StrictIncludes.Enabled = state;
             }
         }
 
@@ -230,10 +241,10 @@ namespace UnrealPluginBuilder
                 OutputDir = string.Empty;
             }
 
-            UpdateBuildButtonState();
+            UpdateFormControlState();
         }
 
-        private void UpdateBuildButtonState()
+        private void UpdateFormControlState()
         {
             var newState = (
                 UprojectPath != string.Empty &&
@@ -243,7 +254,7 @@ namespace UnrealPluginBuilder
                 !IsInBuildProcess
             );
 
-            SafeSetBuildButtonState(newState);
+            SafeSetFormControlState(newState);
         }
 
         private List<string> GetBatchFilePaths()
@@ -451,7 +462,7 @@ namespace UnrealPluginBuilder
             var wasSuccessful = (buildProcess.ExitCode == 0);
             if (wasSuccessful)
             {
-                OutputLog += $"Output to \"{OutputDirPath}\"\r\n";
+                OutputLog += $"Output to \"{OutputDirPath}\"\r\n\r\n";
             }
 
             return new BuildResult(OutputDirPath, wasSuccessful);
@@ -500,10 +511,10 @@ namespace UnrealPluginBuilder
                     }
                 }
 
-                OutputLog += $"Creating {OutputFilename}\r\n";
+                OutputLog += $"\r\nCreating {OutputFilename}\r\n\r\n";
                 ZipFile.CreateFromDirectory(TempDir, OutputFilePath, CompressionLevel.Optimal, false, Encoding.UTF8);
 
-                OutputLog += $"Output to \"{OutputFilePath}\"\r\n";
+                OutputLog += $"Output to \"{OutputFilePath}\"\r\n\r\n";
 
                 Directory.Delete(TempDir, true);
                 return true;
@@ -552,7 +563,7 @@ namespace UnrealPluginBuilder
             clb_BuildBatchFiles.Items.Remove(clb_BuildBatchFiles.SelectedItem);
         }
 
-        private void btn_OutputDir_Click(object sender, EventArgs e)
+        private void btn_PickOutputDir_Click(object sender, EventArgs e)
         {
             OutputDir = PickDirectoryPath(
                 "Please specify the directory to output the package of the built plug-in."
@@ -564,8 +575,9 @@ namespace UnrealPluginBuilder
         private void btn_Build_Click(object sender, EventArgs e)
         {
             OutputLog = string.Empty;
+            tb_OutputDir.Focus();
             IsInBuildProcess = true;
-
+           
             Task.Factory.StartNew(() =>
             {
                 var BatchFilePaths = GetBatchFilePaths();
@@ -595,7 +607,7 @@ namespace UnrealPluginBuilder
 
         private void clb_BuildBatchFiles_MouseDown(object sender, MouseEventArgs e)
         {
-            UpdateBuildButtonState();
+            UpdateFormControlState();
         }
     }
 }
