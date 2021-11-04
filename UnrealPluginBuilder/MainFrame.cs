@@ -113,9 +113,32 @@ namespace UnrealPluginBuilder
             get => cb_StrictIncludes.Checked;
         }
 
-        private void SafeSetFormControlState(bool state)
+        private void SafeSetBuildButtonState(bool state)
         {
             if (btn_Build.InvokeRequired)
+            {
+                Invoke((MethodInvoker)delegate () { SafeSetBuildButtonState(state); });
+            }
+            else
+            {
+                btn_Build.Enabled = state;
+            }
+        }
+
+        private void SafeSetFormControlState(bool state)
+        {
+            if (tb_ProjectPath.InvokeRequired ||
+                btn_PickProjectPath.InvokeRequired ||
+                tb_PluginPath.InvokeRequired ||
+                btn_PickPluginPath.InvokeRequired ||
+                btn_AddBatchFile.InvokeRequired ||
+                btn_RemoveBatchFile.InvokeRequired ||
+                clb_BuildBatchFiles.InvokeRequired ||
+                tb_OutputDir.InvokeRequired ||
+                btn_PickOutputDir.InvokeRequired ||
+                btn_Build.InvokeRequired ||
+                cb_CreatePackage.InvokeRequired ||
+                cb_StrictIncludes.InvokeRequired)
             {
                 Invoke((MethodInvoker)delegate () { SafeSetFormControlState(state); });
             }
@@ -241,10 +264,10 @@ namespace UnrealPluginBuilder
                 OutputDir = string.Empty;
             }
 
-            UpdateFormControlState();
+            UpdateBuildButtonState();
         }
 
-        private void UpdateFormControlState()
+        private void UpdateBuildButtonState()
         {
             var newState = (
                 UprojectPath != string.Empty &&
@@ -254,7 +277,12 @@ namespace UnrealPluginBuilder
                 !IsInBuildProcess
             );
 
-            SafeSetFormControlState(newState);
+            SafeSetBuildButtonState(newState);
+        }
+
+        private void UpdateFormControlState()
+        {
+            SafeSetFormControlState(!IsInBuildProcess);
         }
 
         private List<string> GetBatchFilePaths()
