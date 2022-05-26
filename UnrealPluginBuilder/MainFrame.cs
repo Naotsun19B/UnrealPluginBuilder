@@ -261,7 +261,7 @@ namespace UnrealPluginBuilder
 
             if (!Directory.Exists(OutputDir))
             {
-                OutputDir = string.Empty;
+                OutputDir = Path.Combine(Directory.GetCurrentDirectory(), "Output");
             }
 
             UpdateBuildButtonState();
@@ -549,7 +549,10 @@ namespace UnrealPluginBuilder
             }
             catch
             {
-                Directory.Delete(TempDir, true);
+                if (Directory.Exists(TempDir))
+                {
+                    Directory.Delete(TempDir, true);
+                }
                 return false;
             }
         }
